@@ -35,6 +35,22 @@ services:
       CORRUPT_PROB: ${CORRUPT_PROB:-0.01}
     volumes:
       - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
+    depends_on:
+      - ingest
+
+  ingest:
+    build:
+      context: .
+      dockerfile: ground/ingest/Dockerfile
+    environment:
+      INGEST_PORT: "10015"
+    volumes:
+      - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
 
 volumes:
   timescale-data:
