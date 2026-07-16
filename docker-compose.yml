@@ -24,5 +24,17 @@ services:
       timeout: 3s
       retries: 10
 
+  spacecraft:
+    build:
+      context: .
+      dockerfile: spacecraft/Dockerfile
+    environment:
+      INGEST_HOST: ingest
+      INGEST_PORT: "10015"
+      DROP_PROB: ${DROP_PROB:-0.02}
+      CORRUPT_PROB: ${CORRUPT_PROB:-0.01}
+    volumes:
+      - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
+
 volumes:
   timescale-data:

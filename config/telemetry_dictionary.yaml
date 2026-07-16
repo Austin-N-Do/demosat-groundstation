@@ -1,0 +1,64 @@
+# Single source of truth for packet layout, limits, and commands.
+# Byte offsets are NEVER hand-written — shared/dictionary.py derives a
+# struct format string from parameter order + type, so the spacecraft
+# encoder and ground decoder read this same file and can never drift.
+
+spacecraft:
+  name: "DemoSat-1"
+
+packets:
+  - apid: 100
+    name: eps
+    parameters:
+      - { key: eps.battery_voltage, name: "Battery Voltage", type: float32, units: V,
+          limits: { yellow_low: 24.0, red_low: 22.0, yellow_high: 33.0, red_high: 34.5 } }
+      - { key: eps.battery_current, name: "Battery Current", type: float32, units: A }
+      - { key: eps.solar_array_power, name: "Solar Array Power", type: float32, units: W }
+      - { key: eps.bus_5v, name: "5V Bus Voltage", type: float32, units: V,
+          limits: { yellow_low: 4.7, red_low: 4.5, yellow_high: 5.3, red_high: 5.5 } }
+
+  - apid: 101
+    name: thermal
+    parameters:
+      - { key: thermal.battery_temp, name: "Battery Temperature", type: float32, units: C,
+          limits: { yellow_low: -5.0, red_low: -15.0, yellow_high: 45.0, red_high: 55.0 } }
+      - { key: thermal.obc_temp, name: "OBC Temperature", type: float32, units: C,
+          limits: { yellow_high: 60.0, red_high: 70.0 } }
+      - { key: thermal.radiator_temp, name: "Radiator Temperature", type: float32, units: C }
+
+  - apid: 102
+    name: adcs
+    parameters:
+      - { key: adcs.gyro_x, name: "Gyro X Rate", type: float32, units: "deg/s" }
+      - { key: adcs.gyro_y, name: "Gyro Y Rate", type: float32, units: "deg/s" }
+      - { key: adcs.gyro_z, name: "Gyro Z Rate", type: float32, units: "deg/s" }
+      - { key: adcs.wheel_rpm, name: "Reaction Wheel Speed", type: float32, units: rpm,
+          limits: { yellow_high: 4000.0, red_high: 5000.0 } }
+
+  - apid: 103
+    name: comm
+    parameters:
+      - { key: comm.signal_strength_dbm, name: "Signal Strength", type: float32, units: dBm,
+          limits: { yellow_low: -90.0, red_low: -100.0 } }
+      - { key: comm.tx_power, name: "Transmit Power", type: float32, units: W }
+
+  - apid: 104
+    name: obc
+    parameters:
+      - { key: obc.mode, name: "Spacecraft Mode", type: uint8,
+          enum: { 0: SAFE, 1: NOMINAL, 2: SCIENCE } }
+      - { key: obc.uptime, name: "Uptime", type: uint32, units: s }
+      - { key: obc.cmds_accepted, name: "Commands Accepted", type: uint16 }
+      - { key: obc.cmds_rejected, name: "Commands Rejected", type: uint16 }
+
+  - apid: 105
+    name: cmd_ack
+    parameters:
+      - { key: cmd_ack.cmd_id, name: "Command ID", type: uint16 }
+      - { key: cmd_ack.status, name: "Command Status", type: uint8,
+          enum: { 0: ACCEPTED, 1: REJECTED, 2: EXECUTED } }
+      - { key: cmd_ack.seq_of_command, name: "Command Sequence", type: uint16 }
+
+commands:
+  - { id: 1, name: SET_MODE, arg_enum: { 0: SAFE, 1: NOMINAL, 2: SCIENCE } }
+  - { id: 2, name: TOGGLE_HEATER, arg_enum: { 0: OFF, 1: ON } }
