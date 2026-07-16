@@ -57,5 +57,25 @@ services:
       timescaledb:
         condition: service_healthy
 
+  api:
+    build:
+      context: .
+      dockerfile: ground/api/Dockerfile
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_HOST: timescaledb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
+      POSTGRES_DB: ${POSTGRES_DB:-telemetry}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+
 volumes:
   timescale-data:

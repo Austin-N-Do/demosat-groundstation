@@ -61,4 +61,4 @@ packets:
 
 commands:
   - { id: 1, name: SET_MODE, arg_enum: { 0: SAFE, 1: NOMINAL, 2: SCIENCE } }
-  - { id: 2, name: TOGGLE_HEATER, arg_enum: { 0: OFF, 1: ON } }
+  - { id: 2, name: TOGGLE_HEATER, arg_enum: { 0: "OFF", 1: "ON" } }
