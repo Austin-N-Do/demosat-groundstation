@@ -44,6 +44,11 @@ services:
       dockerfile: ground/ingest/Dockerfile
     environment:
       INGEST_PORT: "10015"
+      REDIS_HOST: redis
+      POSTGRES_HOST: timescaledb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
+      POSTGRES_DB: ${POSTGRES_DB:-telemetry}
     volumes:
       - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
     depends_on:
