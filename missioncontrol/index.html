@@ -12,7 +12,8 @@
     <script type="module">
       import DictionaryPlugin from './plugins/dictionary-plugin.js';
       import RealtimePlugin from './plugins/realtime-plugin.js';
-      // historical-plugin.js and limits-plugin.js land in milestone M6.
+      import HistoricalPlugin from './plugins/historical-plugin.js';
+      import LimitsPlugin from './plugins/limits-plugin.js';
 
       const THIRTY_SECONDS = 30 * 1000;
       const ONE_HOUR = 60 * 60 * 1000;
@@ -54,6 +55,8 @@
 
       openmct.install(DictionaryPlugin());
       openmct.install(RealtimePlugin());
+      openmct.install(HistoricalPlugin());
+      openmct.install(LimitsPlugin());
 
       openmct.start();
     </script>
