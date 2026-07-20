@@ -1,20 +1,39 @@
+# DemoSat-1 ground segment.
+#
+# Designed to coexist with other Docker Compose projects on the same engine:
+#   - explicit project name + network + volume names (no dir-derived collisions)
+#   - exactly ONE published host port (8080); everything else is internal-only.
+#     The browser reaches the API through missioncontrol's nginx reverse proxy,
+#     so api/timescaledb never need host bindings. Opt into them for debugging
+#     with `-f docker-compose.debug.yml` (loopback, non-conflicting ports).
+#   - per-service CPU/memory limits (~2 GB / 3 CPUs for the whole project)
+#   - `on-failure:3` restart: bounded (no runaway loops) and does NOT auto-start
+#     at Docker boot, so this stack consumes nothing unless explicitly launched.
+
+name: demosat-groundstation
+
 services:
   redis:
     image: redis:7-alpine
+    restart: on-failure:3
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
+    restart: on-failure:3
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
       POSTGRES_DB: ${POSTGRES_DB:-telemetry}
-    ports:
-      - "${DB_PORT:-5432}:5432"
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - timescale-data:/var/lib/postgresql/data
@@ -23,11 +42,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # Postgres needs time to checkpoint and shut down cleanly on `compose down`.
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
 
   spacecraft:
     build:
       context: .
       dockerfile: spacecraft/Dockerfile
+    restart: on-failure:3
+    init: true
     environment:
       INGEST_HOST: ingest
       INGEST_PORT: "10015"
@@ -37,11 +65,18 @@ services:
       - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
     depends_on:
       - ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
 
   ingest:
     build:
       context: .
       dockerfile: ground/ingest/Dockerfile
+    restart: on-failure:3
+    init: true
     environment:
       INGEST_PORT: "10015"
       REDIS_HOST: redis
@@ -56,19 +91,24 @@ services:
         condition: service_healthy
       timescaledb:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   api:
     build:
       context: .
       dockerfile: ground/api/Dockerfile
+    restart: on-failure:3
+    init: true
     environment:
       REDIS_HOST: redis
       POSTGRES_HOST: timescaledb
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
       POSTGRES_DB: ${POSTGRES_DB:-telemetry}
-    ports:
-      - "${API_PORT:-8000}:8000"
     volumes:
       - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
     depends_on:
@@ -76,6 +116,32 @@ services:
         condition: service_healthy
       timescaledb:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  missioncontrol:
+    build:
+      context: .
+      dockerfile: missioncontrol/Dockerfile
+    restart: on-failure:3
+    # The only public entry point: OpenMCT plus the /api and /ws reverse proxy.
+    ports:
+      - "${MISSIONCONTROL_PORT:-8080}:80"
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
 
 volumes:
   timescale-data:
+    name: demosat_timescale-data
+
+networks:
+  default:
+    name: demosat_net

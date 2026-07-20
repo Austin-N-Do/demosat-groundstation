@@ -1,0 +1,17 @@
+# Opt-in host bindings for local debugging (curl / psql / wscat).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d
+#
+# Bound to 127.0.0.1 only, on high ports deliberately clear of everything else
+# on this machine: native Python dev servers hold 8000/8001, Kalshi containers
+# hold 6379/6543, and 5432 is reserved for any native Postgres.
+# The app itself never needs these — it runs entirely through localhost:8080.
+
+services:
+  api:
+    ports:
+      - "127.0.0.1:${API_DEBUG_PORT:-18000}:8000"
+
+  timescaledb:
+    ports:
+      - "127.0.0.1:${DB_DEBUG_PORT:-15432}:5432"
