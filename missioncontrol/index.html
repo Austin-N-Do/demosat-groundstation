@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
+    <title>DemoSat-1 Mission Control</title>
+    <script src="dist/openmct.js"></script>
+    <link rel="icon" href="dist/favicons/favicon-32x32.png" sizes="32x32" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import DictionaryPlugin from './plugins/dictionary-plugin.js';
+      import RealtimePlugin from './plugins/realtime-plugin.js';
+      // historical-plugin.js and limits-plugin.js land in milestone M6.
+
+      const THIRTY_SECONDS = 30 * 1000;
+      const ONE_HOUR = 60 * 60 * 1000;
+      const THIRTY_MINUTES = 30 * 60 * 1000;
+
+      // Workers, theme CSS, and images all live under dist/ — without this,
+      // OpenMCT resolves them against the page root and 404s (silently
+      // falling through to index.html via nginx's SPA try_files).
+      openmct.setAssetPath('dist');
+
+      openmct.install(openmct.plugins.LocalStorage());
+      openmct.install(openmct.plugins.Espresso());
+      openmct.install(openmct.plugins.MyItems());
+      openmct.install(openmct.plugins.UTCTimeSystem());
+      openmct.install(openmct.plugins.DisplayLayout());
+      openmct.install(openmct.plugins.LADTable());
+      openmct.install(openmct.plugins.Clock({ enableClockIndicator: true }));
+      openmct.install(
+        openmct.plugins.Conductor({
+          menuOptions: [
+            {
+              name: 'Fixed',
+              timeSystem: 'utc',
+              bounds: { start: Date.now() - THIRTY_MINUTES, end: Date.now() },
+              presets: [
+                { label: 'Last hour', bounds: { start: () => Date.now() - ONE_HOUR, end: () => Date.now() } },
+                { label: 'Last 30 minutes', bounds: { start: () => Date.now() - THIRTY_MINUTES, end: () => Date.now() } }
+              ]
+            },
+            {
+              name: 'Realtime',
+              timeSystem: 'utc',
+              clock: 'local',
+              clockOffsets: { start: -THIRTY_MINUTES, end: THIRTY_SECONDS }
+            }
+          ]
+        })
+      );
+
+      openmct.install(DictionaryPlugin());
+      openmct.install(RealtimePlugin());
+
+      openmct.start();
+    </script>
+  </body>
+</html>

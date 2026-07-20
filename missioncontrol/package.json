@@ -1,0 +1,8 @@
+{
+  "name": "missioncontrol",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "openmct": "~4.2.0"
+  }
+}
