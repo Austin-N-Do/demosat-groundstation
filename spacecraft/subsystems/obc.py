@@ -14,6 +14,9 @@ class ObcState:
         self.mode = "NOMINAL"
         self.cmds_accepted = 0
         self.cmds_rejected = 0
+        # Commanded by TOGGLE_HEATER; read by the thermal subsystem so an
+        # uplinked command produces a visible change in downlinked telemetry.
+        self.heater_on = False
 
     _MODE_CODES = {"SAFE": 0, "NOMINAL": 1, "SCIENCE": 2}
 

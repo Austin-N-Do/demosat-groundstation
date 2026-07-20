@@ -1,7 +1,7 @@
 """Spacecraft simulator — samples every subsystem once a second, encodes a
 CCSDS Space Packet per APID, and sends it down the (lossy) UDP link to the
-ground ingest service. Command listening/ACK (APID 200/105) is wired in by
-command_handler.py once M7 lands."""
+ground ingest service. Also listens for telecommands (APID 200) and answers
+each one with an acknowledgement packet (APID 105) on the same downlink."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pathlib import Path
 
 from shared.ccsds import TM, SpacePacket
 from shared.dictionary import TelemetryDictionary
+from spacecraft.command_handler import CommandHandler, build_ack_payload
 from spacecraft.link import LossyLink
 from spacecraft.subsystems import adcs, comm, eps, thermal
 from spacecraft.subsystems.obc import ObcState
@@ -23,16 +24,8 @@ logger = logging.getLogger("spacecraft")
 DICTIONARY_PATH = Path(os.environ.get("DICTIONARY_PATH", "/app/config/telemetry_dictionary.yaml"))
 INGEST_HOST = os.environ.get("INGEST_HOST", "ingest")
 INGEST_PORT = int(os.environ.get("INGEST_PORT", "10015"))
+TC_PORT = int(os.environ.get("TC_PORT", "10025"))
 TICK_S = 1.0
-
-# name -> sample(t) -> dict, for the stateless subsystems. obc is handled
-# separately below since it carries mutable state (mode, counters).
-SAMPLERS = {
-    "eps": eps.sample,
-    "thermal": thermal.sample,
-    "adcs": adcs.sample,
-    "comm": comm.sample,
-}
 
 
 async def main() -> None:
@@ -41,24 +34,45 @@ async def main() -> None:
     obc_state = ObcState()
     seq = {apid: 0 for apid in dictionary.packets}
 
-    logger.info("Spacecraft %s downlinking to %s:%s (DROP_PROB=%s CORRUPT_PROB=%s)",
-                dictionary.spacecraft_name, INGEST_HOST, INGEST_PORT,
+    def send_ack(cmd_id: int, status: int, seq_of_command: int) -> None:
+        ack_def = dictionary.packets_by_name["cmd_ack"]
+        payload = build_ack_payload(ack_def, cmd_id, status, seq_of_command)
+        _transmit(link, ack_def, payload, time.time(), seq)
+
+    loop = asyncio.get_running_loop()
+    tc_transport, _ = await loop.create_datagram_endpoint(
+        lambda: CommandHandler(dictionary, obc_state, send_ack),
+        local_addr=("0.0.0.0", TC_PORT),
+    )
+
+    logger.info("Spacecraft %s downlinking to %s:%s, telecommand uplink on udp/%d "
+                "(DROP_PROB=%s CORRUPT_PROB=%s)",
+                dictionary.spacecraft_name, INGEST_HOST, INGEST_PORT, TC_PORT,
                 os.environ.get("DROP_PROB", "0.02"), os.environ.get("CORRUPT_PROB", "0.01"))
 
-    while True:
-        now = time.time()
-        for name, sampler in SAMPLERS.items():
-            packet_def = dictionary.packets_by_name[name]
-            _transmit(link, packet_def, sampler(now), now, seq)
+    try:
+        while True:
+            now = time.time()
+            # Subsystems that depend on commanded state read it here; the rest
+            # are pure functions of mission time.
+            samples = {
+                "eps": eps.sample(now),
+                "thermal": thermal.sample(now, heater_on=obc_state.heater_on),
+                "adcs": adcs.sample(now),
+                "comm": comm.sample(now),
+                "obc": obc_state.sample(now),
+            }
+            for name, values in samples.items():
+                packet_def = dictionary.packets_by_name[name]
+                _transmit(link, packet_def, packet_def.encode_payload(values), now, seq)
 
-        obc_def = dictionary.packets_by_name["obc"]
-        _transmit(link, obc_def, obc_state.sample(now), now, seq)
+            await asyncio.sleep(TICK_S)
+    finally:
+        tc_transport.close()
+        link.close()
 
-        await asyncio.sleep(TICK_S)
 
-
-def _transmit(link: LossyLink, packet_def, values: dict, now: float, seq: dict) -> None:
-    payload = packet_def.encode_payload(values)
+def _transmit(link: LossyLink, packet_def, payload: bytes, now: float, seq: dict) -> None:
     pkt = SpacePacket(apid=packet_def.apid, packet_type=TM, sequence_count=seq[packet_def.apid],
                        timestamp=now, payload=payload)
     wire = pkt.encode()

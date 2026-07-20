@@ -33,6 +33,9 @@ async def consume_decoded(redis, ws_manager) -> None:
                     msg = json.loads(fields["data"])
                 except Exception:
                     continue
+                if msg.get("packet_name") == "cmd_ack":
+                    _correlate_ack(msg.get("parameters", {}))
+
                 for key, info in msg.get("parameters", {}).items():
                     datum = {
                         "timestamp": msg["timestamp"],
@@ -40,3 +43,18 @@ async def consume_decoded(redis, ws_manager) -> None:
                         "alarm": info["alarm"],
                     }
                     await ws_manager.broadcast(key, datum)
+
+
+def _correlate_ack(parameters: dict) -> None:
+    """Feed a decoded APID 105 packet to the command registry. `status` has
+    already been resolved to its enum label by the dictionary decoder."""
+    from ground.api.commands import registry
+
+    try:
+        registry.record_ack(
+            cmd_id=parameters["cmd_ack.cmd_id"]["value"],
+            status=parameters["cmd_ack.status"]["value"],
+            seq_of_command=parameters["cmd_ack.seq_of_command"]["value"],
+        )
+    except Exception as e:
+        logger.debug("could not correlate ack: %s", e)

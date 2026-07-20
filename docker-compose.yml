@@ -59,6 +59,7 @@ services:
     environment:
       INGEST_HOST: ingest
       INGEST_PORT: "10015"
+      TC_PORT: "10025"
       DROP_PROB: ${DROP_PROB:-0.02}
       CORRUPT_PROB: ${CORRUPT_PROB:-0.01}
     volumes:
@@ -109,6 +110,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
       POSTGRES_DB: ${POSTGRES_DB:-telemetry}
+      SPACECRAFT_HOST: spacecraft
+      TC_PORT: "10025"
     volumes:
       - ./config/telemetry_dictionary.yaml:/app/config/telemetry_dictionary.yaml:ro
     depends_on:

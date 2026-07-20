@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DemoSat-1 Command Panel</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; padding: 24px;
+        background: #202020; color: #d0d0d0;
+        font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      h1 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
+      .sub { color: #808080; margin: 0 0 24px; font-size: 13px; }
+      .panel {
+        background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 4px;
+        padding: 16px; max-width: 720px; margin-bottom: 24px;
+      }
+      label { display: block; font-size: 12px; color: #909090; margin-bottom: 4px; }
+      .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+      select, button {
+        background: #333; color: #e0e0e0; border: 1px solid #4a4a4a;
+        border-radius: 3px; padding: 7px 10px; font-size: 13px; font-family: inherit;
+      }
+      button { background: #0a6ebd; border-color: #0a6ebd; cursor: pointer; }
+      button:hover { background: #0d82df; }
+      button:disabled { background: #444; border-color: #444; cursor: not-allowed; }
+      table { width: 100%; border-collapse: collapse; max-width: 720px; }
+      th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #333; font-size: 13px; }
+      th { color: #808080; font-weight: 500; font-size: 12px; }
+      .status { font-weight: 500; }
+      .EXECUTED, .ACCEPTED { color: #4caf50; }
+      .REJECTED, .TIMEOUT { color: #e05252; }
+      .PENDING { color: #e0a52e; }
+      a { color: #4a9eda; }
+    </style>
+  </head>
+  <body>
+    <h1>DemoSat-1 command panel</h1>
+    <p class="sub">
+      Telecommand uplink (CCSDS APID 200). OpenMCT has no built-in commanding
+      UI, so this rides alongside it — <a href="/">back to mission control</a>.
+    </p>
+
+    <div class="panel">
+      <div class="row">
+        <div>
+          <label for="cmd">Command</label>
+          <select id="cmd"></select>
+        </div>
+        <div>
+          <label for="arg">Argument</label>
+          <select id="arg"></select>
+        </div>
+        <button id="send">Send command</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Command</th><th>Argument</th><th>Seq</th><th>Status</th></tr>
+      </thead>
+      <tbody id="history"><tr><td colspan="5" style="color:#707070">No commands sent yet.</td></tr></tbody>
+    </table>
+
+    <script type="module">
+      const cmdSelect = document.getElementById('cmd');
+      const argSelect = document.getElementById('arg');
+      const sendButton = document.getElementById('send');
+      const historyBody = document.getElementById('history');
+
+      let commands = [];
+
+      const dictionary = await (await fetch('/api/dictionary')).json();
+      commands = dictionary.commands || [];
+
+      for (const command of commands) {
+        const option = document.createElement('option');
+        option.value = command.id;
+        option.textContent = command.name;
+        cmdSelect.appendChild(option);
+      }
+
+      function refreshArgs() {
+        const command = commands.find((c) => String(c.id) === cmdSelect.value);
+        argSelect.innerHTML = '';
+        const argEnum = (command && command.arg_enum) || {};
+        for (const [value, label] of Object.entries(argEnum)) {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = `${label} (${value})`;
+          argSelect.appendChild(option);
+        }
+        argSelect.disabled = Object.keys(argEnum).length === 0;
+      }
+
+      cmdSelect.addEventListener('change', refreshArgs);
+      refreshArgs();
+
+      sendButton.addEventListener('click', async () => {
+        sendButton.disabled = true;
+        try {
+          const response = await fetch('/api/commands', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: Number(cmdSelect.value),
+              arg: Number(argSelect.value || 0)
+            })
+          });
+          if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            alert(`Command rejected: ${detail.detail || response.status}`);
+          }
+        } finally {
+          sendButton.disabled = false;
+          refreshHistory();
+        }
+      });
+
+      async function refreshHistory() {
+        let records = [];
+        try {
+          records = await (await fetch('/api/commands')).json();
+        } catch {
+          return;
+        }
+        if (!records.length) return;
+        historyBody.innerHTML = records
+          .map(
+            (r) => `<tr>
+              <td>${new Date(r.sent_at * 1000).toISOString().slice(11, 19)}Z</td>
+              <td>${r.name}</td>
+              <td>${r.arg}</td>
+              <td>${r.seq}</td>
+              <td class="status ${r.status}">${r.status}</td>
+            </tr>`
+          )
+          .join('');
+      }
+
+      // Poll so PENDING rows flip to EXECUTED/REJECTED/TIMEOUT as ACKs land.
+      refreshHistory();
+      setInterval(refreshHistory, 1000);
+    </script>
+  </body>
+</html>
