@@ -238,24 +238,3 @@ known-answer vector, corruption detection, 14-bit sequence wraparound),
 sequence-gap detection including wraparound, limit boundaries and alarm
 transitions, and the command path (execution, rejection, ACK correlation,
 and dropping un-acknowledgeable corrupted uplinks).
-
-## Résumé bullets
-
-- Built an end-to-end spacecraft telemetry ground segment implementing the
-  **CCSDS Space Packet Protocol** with CRC-16 validation and sequence-gap
-  detection, integrated with **NASA OpenMCT** via four custom telemetry
-  plugins (object tree, realtime WebSocket, historical, limits).
-- Designed a **YAML telemetry dictionary as the single source of truth** —
-  flight encoder, ground decoder, limit checker and mission-control UI all
-  derive from one definition, with byte offsets computed from field order,
-  eliminating a whole class of interface-drift bugs.
-- Implemented a real-time pipeline — **Redis Streams** for fan-out,
-  **TimescaleDB** hypertable for historical replay, **FastAPI** WebSocket
-  for live push — sustaining 1 Hz per-subsystem telemetry with sub-second
-  display latency.
-- Built a **CCSDS command uplink with acknowledgement correlation** keyed on
-  command id *and* sequence count, with bounded timeouts for
-  acknowledgements lost to simulated link degradation.
-- Hardened the **Docker Compose** deployment for multi-project coexistence:
-  explicit project/network/volume namespacing, per-service CPU and memory
-  limits, a single published port, and bounded restart policies.
